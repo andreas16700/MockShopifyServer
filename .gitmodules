@@ -1,0 +1,3 @@
+[submodule "MockPowersoftClient"]
+	path = MockPowersoftClient
+	url = https://github.com/andreas16700/MockPowersoftClient
