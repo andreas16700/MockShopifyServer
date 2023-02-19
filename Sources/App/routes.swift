@@ -1,5 +1,7 @@
 import Vapor
-import MockPowersoftClient
+import MockShopifyClient
+import ShopifyClient
+
 
 func routes(_ app: Application) throws {
     app.get { req async in
@@ -13,4 +15,4 @@ func routes(_ app: Application) throws {
     }
 	
 }
-//var store = MockPowersoftStore(models: <#T##[String : [PSItem]]#>, modelsMetadata: <#T##[String : PSListModel]#>, stockByItemCode: <#T##[String : PSListStockStoresItem]#>)
+//var store = MockShopifyStore

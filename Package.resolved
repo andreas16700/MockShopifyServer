@@ -172,6 +172,15 @@
       }
     },
     {
+      "identity" : "swiftlinuxnetworking",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/andreas16700/SwiftLinuxNetworking.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "4605eff9d9689743768e71018492c4e42e84810c"
+      }
+    },
+    {
       "identity" : "vapor",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/vapor.git",

@@ -1,3 +1,6 @@
-[submodule "MockPowersoftClient"]
-	path = MockPowersoftClient
-	url = https://github.com/andreas16700/MockPowersoftClient
+[submodule "MockShopifyClient"]
+	path = MockShopifyClient
+	url = https://github.com/andreas16700/MockShopifyClient
+[submodule "otBench"]
+	path = otBench
+	url = https://github.com/andreas16700/otBench
