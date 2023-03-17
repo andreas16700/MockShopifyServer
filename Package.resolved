@@ -37,15 +37,6 @@
       }
     },
     {
-      "identity" : "ratelimitingcommunicator",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/andreas16700/RateLimitingCommunicator.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "3a63502c1ab6874888fcbc9d5c20e2c6607cc8f1"
-      }
-    },
-    {
       "identity" : "routing-kit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/routing-kit.git",
@@ -169,15 +160,6 @@
       "state" : {
         "revision" : "0a5bc04095a675662cf24757cc0640aa2204253b",
         "version" : "1.0.2"
-      }
-    },
-    {
-      "identity" : "swiftlinuxnetworking",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/andreas16700/SwiftLinuxNetworking.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "4605eff9d9689743768e71018492c4e42e84810c"
       }
     },
     {
