@@ -9,21 +9,37 @@ import Foundation
 import ShopifyKit
 
 public actor MockShopifyStore{
-	public init(products: [SHProduct], locations: [SHLocation], inventoriesByLocationID: [Int : [InventoryLevel]], defaultLocationID: Int? = nil) {
+	static let PAGE_SIZE = 10000
+	public init(products: [SHProduct], locations: [SHLocation], inventoriesByLocationIDByInvID: [Int : [Int: InventoryLevel]], defaultLocationID: Int? = nil) {
 		self.productsByID = products.reduce(into: [Int: SHProduct]()){dict, prod in
 			dict[prod.id!]=prod
 		}
-		self.locations = locations
-		self.inventoriesByLocationID = inventoriesByLocationID
-		self.defaultLocationID = locations.first!.id
+		self.locations = locations.isEmpty ? [SHLocation.init(id: 5, name: "default")] : locations
+		self.inventoriesByLocationIDByInvID = inventoriesByLocationIDByInvID
+		self.defaultLocationID = self.locations.first!.id
+		if self.inventoriesByLocationIDByInvID[self.defaultLocationID] == nil{
+			self.inventoriesByLocationIDByInvID[self.defaultLocationID] = .init()
+		}
 	}
 	
 	var productsByID: [Int: SHProduct]
 	var locations: [SHLocation]
-	var inventoriesByLocationID: [Int: [InventoryLevel]]
+	var inventoriesByLocationIDByInvID: [Int: [Int: InventoryLevel]]
 	let defaultLocationID: Int
-	static let generateID = {return Int.random(in: 12345...99999)}
+	static var generated = Set<Int>()
+	static func generateID()->Int{
+		var g = Int.random(in: 111111...999999)
+		while Self.generated.contains(g){
+			g = Int.random(in: 111111...999999)
+		}
+		Self.generated.insert(g)
+		return g
+	}
 	//MARK: Public
+	public func reset(){
+		productsByID = .init()
+		inventoriesByLocationIDByInvID = [defaultLocationID: .init()]
+	}
 	public func deleteVariant(ofProductID productID: Int, variantID: Int) async -> Bool {
 		guard let variantIndex = indexOfVariant(productID: productID, variantID: variantID) else {return false}
 		productsByID[productID]!.variants.remove(at: variantIndex)
@@ -49,14 +65,16 @@ public actor MockShopifyStore{
 			return nil
 		}
 		let (variant, inventory) = Self.generateNewVariant(variant: variant, for: productID, onLocationID: defaultLocationID)
-		inventoriesByLocationID[defaultLocationID, default: .init()].append(inventory)
+		inventoriesByLocationIDByInvID[defaultLocationID]![inventory.inventoryItemID] = inventory
 		return variant
 	}
 	
 	public func deleteProduct(id: Int) async -> Bool {
 		return productsByID.removeValue(forKey: id) != nil
 	}
-	
+	private func addInventory(_ i: InventoryLevel){
+		inventoriesByLocationIDByInvID[defaultLocationID]![i.inventoryItemID] = i
+	}
 	public func updateProduct(with update: SHProductUpdate) async -> SHProduct? {
 		let productID = update.id
 		guard productsByID[productID] != nil else{
@@ -92,7 +110,7 @@ public actor MockShopifyStore{
 				}else{
 					let (createdVar, createdInv) = Self.generateNewVariant(variant: varUpd, for: existingProduct.id!, onLocationID: defaultLocationID)
 					existingProduct.variants.append(createdVar)
-					inventoriesByLocationID[defaultLocationID, default: .init()].append(createdInv)
+					addInventory(createdInv)
 				}
 			}
 		}
@@ -118,10 +136,24 @@ public actor MockShopifyStore{
 		
 		return (new,inventories)
 	}
-	public func createNewProduct(new given: SHProduct) async -> SHProduct? {
+	public func createNewProduct(new given: SHProduct, inventoriesBySKU: [String: Int]? = nil) async -> SHProduct? {
 		let (generated, inventories) = Self.generateNewProduct(new: given, locationID: defaultLocationID)
 		productsByID[generated.id!] = generated
-		inventories.forEach{inventoriesByLocationID[defaultLocationID, default: .init()].append($0)}
+		if let inventoriesBySKU{
+			let skuByInvID = generated.variants.reduce(into: [Int: String](minimumCapacity: generated.variants.count)){
+				$0[$1.inventoryItemID!]=$1.sku
+			}
+			var modifiedInvs = inventories
+			for i in 0..<modifiedInvs.count{
+				let invID = modifiedInvs[i].inventoryItemID
+				let sku = skuByInvID[invID]!
+				modifiedInvs[i].available = inventoriesBySKU[sku]!
+			}
+			modifiedInvs.forEach{addInventory($0)}
+		}else{
+			inventories.forEach{addInventory($0)}
+		}
+		
 		
 		return generated
 	}
@@ -140,10 +172,17 @@ public actor MockShopifyStore{
 		return Array(slice)
 	}
 	public func getProductsPage(pageNum: Int)->[SHProduct]?{
-		return getPage(allGetter: {allProducts}, pageNum: pageNum)
+		return allProducts.getPaginatedSlice(pageNumber: pageNum, pageSize: Self.PAGE_SIZE)
+//		return getPage(allGetter: {allProducts}, pageNum: pageNum)
 	}
 	public func getInventoriesPage(pageNum: Int)->[InventoryLevel]?{
-		return getPage(allGetter: {allInventories}, pageNum: pageNum)
+		return allInventories.getPaginatedSlice(pageNumber: pageNum, pageSize: Self.PAGE_SIZE)
+//		return getPage(allGetter: {allInventories}, pageNum: pageNum)
+	}
+	public func getInventoriesPage(pageNum: Int, locationID: Int)->[InventoryLevel]?{
+		guard let invs = inventoriesByLocationIDByInvID[locationID] else {return nil}
+		return Array(invs.values).getPaginatedSlice(pageNumber: pageNum, pageSize: Self.PAGE_SIZE)
+//		return getPage(allGetter: {allInventories}, pageNum: pageNum)
 	}
 	public func getProduct(withHandle handle: String) async -> SHProduct? {
 		return productsByID.values.first(where: {$0.handle==handle})
@@ -162,22 +201,22 @@ public actor MockShopifyStore{
 			reportError("Location \(currentGiven.locationID) does not exist on store")
 			return nil
 		}
-		guard let locationInventories = inventoriesByLocationID[currentGiven.locationID]else{
+		guard let locationInventories = inventoriesByLocationIDByInvID[currentGiven.locationID]else{
 			reportError("Location \(currentGiven.locationID) is empty!")
 			return nil
 		}
-		
-		guard let indexOfCurrent = locationInventories.firstIndex(where: {$0.inventoryItemID == currentGiven.inventoryItemID}) else{
+		guard locationInventories[currentGiven.inventoryItemID] != nil else{
 			reportError("Location \(currentGiven.inventoryItemID) does not exist on location \(currentGiven.locationID)")
 			return nil
 		}
-		inventoriesByLocationID[currentGiven.locationID]![indexOfCurrent].available = update.available
-		return inventoriesByLocationID[currentGiven.locationID]![indexOfCurrent]
+		inventoriesByLocationIDByInvID[currentGiven.locationID]![currentGiven.inventoryItemID]!.available = update.available
+
+		return inventoriesByLocationIDByInvID[currentGiven.locationID]![currentGiven.inventoryItemID]!
 	}
 	
 	public func getInventory(of invItemID: Int) async -> InventoryLevel? {
-		for (_, invs) in inventoriesByLocationID{
-			if let found = invs.first(where: {$0.inventoryItemID == invItemID}){
+		for (_, invs) in inventoriesByLocationIDByInvID{
+			if let found = invs[invItemID]{
 				return found
 			}
 		}
@@ -185,14 +224,24 @@ public actor MockShopifyStore{
 	}
 	
 	
-	var allInventories: [InventoryLevel] {inventoriesByLocationID.values.reduce(into: [InventoryLevel](), {$0.append(contentsOf: $1)})}
+	var allInventories: [InventoryLevel] {
+		let allCount = inventoriesByLocationIDByInvID.reduce(0){return $0+$1.value.count}
+		var arr: [InventoryLevel] = .init()
+		arr.reserveCapacity(allCount)
+		return inventoriesByLocationIDByInvID.values.reduce(into: arr){
+			$0.append(contentsOf: Array($1.values))
+		}
+	}
 	
 	public func getAllInventories() async -> [InventoryLevel]? {
 		return allInventories
 	}
 	
 	public func getAllInventories(of locationID: Int) async -> [InventoryLevel]? {
-		return inventoriesByLocationID[locationID]
+		if let val = inventoriesByLocationIDByInvID[locationID]?.values{
+			return Array(val)
+		}
+		return nil
 	}
 	
 	public func getAllLocations() async -> [SHLocation]? {

@@ -11,6 +11,6 @@ final class AppTests: XCTestCase {
 //            XCTAssertEqual(res.status, .ok)
 //            XCTAssertEqual(res.body.string, "Hello, world!")
 //        })
-		let s = await store.getPage(of: \.productsByID)
+//		let s = await store.getPage(of: \.productsByID)
     }
 }
