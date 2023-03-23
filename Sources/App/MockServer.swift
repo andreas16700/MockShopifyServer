@@ -7,14 +7,18 @@
 
 import Foundation
 import ShopifyKit
-
+extension SHLocation{
+	static func defaultLoc()->Self{
+		return .init(id: 5, name: "default", country: "", createdAt: "", updatedAt: "", countryCode: "", countryName: "", legacy: false, active: true, adminGraphqlAPIID: "", localizedCountryName: "")
+	}
+}
 public actor MockShopifyStore{
 	static let PAGE_SIZE = 10000
 	public init(products: [SHProduct], locations: [SHLocation], inventoriesByLocationIDByInvID: [Int : [Int: InventoryLevel]], defaultLocationID: Int? = nil) {
 		self.productsByID = products.reduce(into: [Int: SHProduct]()){dict, prod in
 			dict[prod.id!]=prod
 		}
-		self.locations = locations.isEmpty ? [SHLocation.init(id: 5, name: "default")] : locations
+		self.locations = locations.isEmpty ? [.defaultLoc()] : locations
 		self.inventoriesByLocationIDByInvID = inventoriesByLocationIDByInvID
 		self.defaultLocationID = self.locations.first!.id
 		if self.inventoriesByLocationIDByInvID[self.defaultLocationID] == nil{

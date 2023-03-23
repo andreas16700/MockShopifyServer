@@ -9,16 +9,14 @@ let package = Package(
     dependencies: [
         // 💧 A server-side Swift web framework.
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
-		.package(name: "ShopifyKit", path: "../ShopifyKit"),
-		.package(name: "ShopifyClient", path: "../ShopifyClient"),
+		.package(url: "https://github.com/andreas16700/ShopifyKit", branch: "main")
     ],
     targets: [
         .target(
             name: "App",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
-				.product(name: "ShopifyKit", package: "ShopifyKit"),
-				.product(name: "ShopifyClient", package: "ShopifyClient")
+				.product(name: "ShopifyKit", package: "ShopifyKit")
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of
