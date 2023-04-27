@@ -217,6 +217,33 @@ public actor MockShopifyStore{
 
 		return inventoriesByLocationIDByInvID[currentGiven.locationID]![currentGiven.inventoryItemID]!
 	}
+	public func updateInventories(currents currentsGiven: [InventoryLevel], updates: [SHInventorySet]) async -> [InventoryLevel]? {
+		guard let locID = currentsGiven.randomElement()?.locationID else {reportError("No location ID given!");return nil}
+		guard currentsGiven.allSatisfy({$0.locationID == locID}) else {
+			reportError("updateInventories only takes updates to the same location ID! Expected all updates to be for location \(locID)")
+			return nil
+		}
+		guard locations.contains(where: {$0.id == locID}) else {
+			reportError("Location \(locID) does not exist on store")
+			return nil
+		}
+		guard let locationInventories = inventoriesByLocationIDByInvID[locID]else{
+			reportError("Location \(locID) is empty!")
+			return nil
+		}
+		var updated: [InventoryLevel?] = .init(repeating: nil, count: updates.count)
+		for i in 0..<updates.count{
+			let u = updates[i]
+			guard locationInventories[u.inventoryItemID] != nil else{
+				reportError("Location \(u.inventoryItemID) does not exist on location \(locID)")
+				return nil
+			}
+			inventoriesByLocationIDByInvID[locID]![u.inventoryItemID]!.available = u.available
+			updated[i] = inventoriesByLocationIDByInvID[locID]![u.inventoryItemID]!
+		}
+
+		return updated.compactMap{$0}
+	}
 	
 	public func getInventory(of invItemID: Int) async -> InventoryLevel? {
 		for (_, invs) in inventoriesByLocationIDByInvID{
@@ -225,6 +252,24 @@ public actor MockShopifyStore{
 			}
 		}
 		return nil
+	}
+	public func getInventories(of invItemIDs: [Int]) async -> [InventoryLevel]? {
+		var foundIndices: Set<Int> = .init(minimumCapacity: invItemIDs.count)
+		var foundInvs: [InventoryLevel?] = .init(repeating: nil, count: invItemIDs.count)
+		for (_, invs) in inventoriesByLocationIDByInvID{
+			for i in 0..<invItemIDs.count {
+				if foundIndices.contains(i){
+					continue
+				}
+				let invItemID = invItemIDs[i]
+				if let found = invs[invItemID]{
+					foundInvs[i] = found
+					foundIndices.insert(i)
+				}
+			}
+			
+		}
+		return foundInvs.compactMap{$0}
 	}
 	
 	

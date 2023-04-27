@@ -11,10 +11,34 @@ extension SHLocation: Content{}
 struct Wrapper<T: Codable>: Codable, Content{
 	let content: T
 }
+func handleStream(_ req: Request) -> EventLoopFuture<Response> {
+	let promise = req.eventLoop.makePromise(of: Response.self)
+	
+	var buffer = ByteBuffer()
+	req.body.drain { chunk in
+		switch chunk {
+		case .buffer(var data):
+			buffer.writeBuffer(&data)
+		case .end:
+			let response = Response(status: .ok)
+//			let g: Data = .ini
+			promise.succeed(response)
+		case .error(let error):
+			promise.fail(error)
+		}
+		return req.eventLoop.future()
+	}
+	
+	return promise.futureResult
+}
 func routes(_ app: Application) throws {
     app.get { req async in
         "It works!"
     }
+//	app.on(.PUT, "up", body: .stream){req async -> String in
+//		req.body.drain(<#T##handler: (BodyStreamResult) -> EventLoopFuture<Void>##(BodyStreamResult) -> EventLoopFuture<Void>#>)
+//		return "ok"
+//	}
 
     app.get("init") { req async -> String in
 		
@@ -52,6 +76,15 @@ func routes(_ app: Application) throws {
 		guard let updateBody = try decodeToType(req.body.data, to: SHVariantUpdate.self) else {throw HTTPStatus.badRequest}
 		guard let variant = await store.updateVariant(with: updateBody) else {throw HTTPStatus.badRequest}
 		return variant
+	}
+	//	public func updateVariants(with updates: [SHVariantUpdate]) async -> [SHVariant]?
+	app.on(.PUT, "variants","multiple", body: .collect){req async throws -> [SHVariant] in
+		guard let updateBody = try decodeToType(req.body.data, to: [SHVariantUpdate].self) else {throw HTTPStatus.badRequest}
+		var updated: [SHVariant?] = .init(repeating: nil, count: updateBody.count)
+		for i in 0..<updateBody.count{
+			updated[i] = await store.updateVariant(with: updateBody[i])
+		}
+		return updated.compactMap{$0}
 	}
 	//	public func createNewVariant(variant: SHVariantUpdate, for productID: Int) async -> SHVariant?
 	app.on(.POST, ":prodID", body: .collect){req async throws -> SHVariant in
@@ -149,12 +182,30 @@ func routes(_ app: Application) throws {
 		guard let updated = await store.updateInventory(current: current, update: updateBody) else {throw HTTPStatus.badRequest}
 		return updated
 	}
+//	public func updateInventories(updates: [(ShopifyKit.InventoryLevel, ShopifyKit.SHInventorySet)]) async-> [ShopifyKit.InventoryLevel]?
+	app.on(.PUT, "inventories","multiple", body: .collect){req async throws -> [InventoryLevel] in
+		guard let updateBody = try decodeToType(req.body.data, to: [SHInventorySet].self) else {throw HTTPStatus.badRequest}
+		let currents: [InventoryLevel] = updateBody.map{
+			.init(inventoryItemID: $0.inventoryItemID, locationID: $0.locationID, updatedAt: "", adminGraphqlAPIID: "")
+		}
+			
+			
+		guard let updated = await store.updateInventories(currents: currents, updates: updateBody) else {throw HTTPStatus.badRequest}
+		return updated
+	}
 	
 	//	public func getInventory(of invItemID: Int) async -> InventoryLevel?
 	app.on(.GET,"inventory",":invItemID"){req async throws -> InventoryLevel in
 		guard let invItemID = req.parameters.get("invItemID", as: Int.self) else{throw HTTPStatus.badRequest}
 		guard let inv = await store.getInventory(of: invItemID) else{throw HTTPStatus.internalServerError}
 		return inv
+	}
+	//public func getInventories(of invItemIDs: [Int]) async -> [InventoryLevel]?
+	app.on(.POST,"inventories","multiple", body: .collect){req async throws -> [InventoryLevel] in
+		guard let ids = try decodeToType(req.body.data, to: [Int].self) else {throw HTTPStatus.badRequest}
+		guard let invs = await store.getInventories(of: ids) else {throw HTTPStatus.internalServerError}
+				
+		return invs
 	}
 	//	public func getAllInventories() async -> [InventoryLevel]?
 	//paginated
