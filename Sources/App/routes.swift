@@ -50,7 +50,7 @@ func routes(_ app: Application) throws {
 		return .ok
 	}
 	app.get("generate"){req async -> HTTPStatus in
-		let prodCount = 50_000
+		let prodCount = 1_000
 		let prods = Array(0..<prodCount).map{prodID in
 			let varCount = Int.random(in: 1...20)
 			let variants = Array(0..<varCount).map{varID in
@@ -93,6 +93,17 @@ func routes(_ app: Application) throws {
 		guard let varBody = try decodeToType(req.body.data, to: SHVariantUpdate.self) else{throw HTTPStatus.badRequest}
 		guard let newVar = await store.createNewVariant(variant: varBody, for: prodID) else{throw HTTPStatus.internalServerError}
 		return newVar
+	}
+//	public func createNewViariants(variants: [SHVariantUpdate], for productID: Int) async -> [SHVariant]?
+	app.on(.POST, ":prodID","multiple", body: .collect){req async throws -> [SHVariant] in
+		let prodIDStr = req.parameters.get("prodID")!
+		guard let prodID = Int(prodIDStr) else{throw HTTPStatus.badRequest}
+		guard let varsBody = try decodeToType(req.body.data, to: [SHVariantUpdate].self) else{throw HTTPStatus.badRequest}
+		let receivedVars =  await varsBody.asyncMap{
+			return await store.createNewVariant(variant: $0, for: prodID)
+		}
+		let vars: [SHVariant] = receivedVars.compactMap{$0}
+		return vars
 	}
 	//MARK: Product
 		app.on(.GET,"products","page",":pageNum"){req async throws -> [SHProduct] in
@@ -182,7 +193,7 @@ func routes(_ app: Application) throws {
 		guard let updated = await store.updateInventory(current: current, update: updateBody) else {throw HTTPStatus.badRequest}
 		return updated
 	}
-//	public func updateInventories(updates: [(ShopifyKit.InventoryLevel, ShopifyKit.SHInventorySet)]) async-> [ShopifyKit.InventoryLevel]?
+//	func updateInventories(updates: [SHInventorySet])async->[InventoryLevel]?
 	app.on(.PUT, "inventories","multiple", body: .collect){req async throws -> [InventoryLevel] in
 		guard let updateBody = try decodeToType(req.body.data, to: [SHInventorySet].self) else {throw HTTPStatus.badRequest}
 		let currents: [InventoryLevel] = updateBody.map{
