@@ -12,6 +12,44 @@ extension SHLocation{
 		return .init(id: 5, name: "default", country: "", createdAt: "", updatedAt: "", countryCode: "", countryName: "", legacy: false, active: true, adminGraphqlAPIID: "", localizedCountryName: "")
 	}
 }
+//May be needed later
+//actor Stack<T: Hashable>{
+//	init(initialCapacity: Int){
+//		arr = .init(repeating: nil, count: initialCapacity)
+//		nextIndex = 0
+//	}
+//	private var arr: [T?]
+//	//nextIndex is the index of the next (new) item to push
+//	private var nextIndex: Int
+//	func makeSureTheseNewItemsFit(count: Int){
+//		let spares = arr.count - nextIndex
+//		let extraNeeded = count-spares
+//		guard extraNeeded>0 else {return}
+//		expand()
+//	}
+//	func pop()->T?{
+//		guard nextIndex - 1 >= 0 else {return nil}
+//		nextIndex-=1
+//		defer{arr[nextIndex]=nil}
+//		return arr[nextIndex]
+//	}
+//	func push(t: T){
+//		arr[nextIndex]=t
+//		nextIndex+=1
+//		guard nextIndex<arr.count else {
+//			expand()
+//			assert(nextIndex<arr.count)
+//			return
+//		}
+//	}
+//	private func expand(){
+//		let extensionSize = arr.count/4
+//		arr.reserveCapacity(arr.count+extensionSize)
+//		for _ in 0..<extensionSize{
+//			arr.append(nil)
+//		}
+//	}
+//}
 public actor MockShopifyStore{
 	static let PAGE_SIZE = 10000
 	public init(products: [SHProduct], locations: [SHLocation], inventoriesByLocationIDByInvID: [Int : [Int: InventoryLevel]], defaultLocationID: Int? = nil) {
@@ -42,6 +80,7 @@ public actor MockShopifyStore{
 	//MARK: Public
 	public func reset(){
 		productsByID.removeAll(keepingCapacity: true)
+		Self.generated.removeAll(keepingCapacity: true)
 		for (k,_) in inventoriesByLocationIDByInvID{
 			inventoriesByLocationIDByInvID[k]!.removeAll(keepingCapacity: true)
 		}
