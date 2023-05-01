@@ -41,8 +41,10 @@ public actor MockShopifyStore{
 	}
 	//MARK: Public
 	public func reset(){
-		productsByID = .init()
-		inventoriesByLocationIDByInvID = [defaultLocationID: .init()]
+		productsByID.removeAll(keepingCapacity: true)
+		for (k,_) in inventoriesByLocationIDByInvID{
+			inventoriesByLocationIDByInvID[k]!.removeAll(keepingCapacity: true)
+		}
 	}
 	public func deleteVariant(ofProductID productID: Int, variantID: Int) async -> Bool {
 		guard let variantIndex = indexOfVariant(productID: productID, variantID: variantID) else {return false}

@@ -39,7 +39,10 @@ func routes(_ app: Application) throws {
 //		req.body.drain(<#T##handler: (BodyStreamResult) -> EventLoopFuture<Void>##(BodyStreamResult) -> EventLoopFuture<Void>#>)
 //		return "ok"
 //	}
-
+	app.get("randomP"){req async -> String in
+		guard let p = await store.allProducts.randomElement() else {return "empty store!"}
+		return showThing(p)
+	}
     app.get("init") { req async -> String in
 		
 		
@@ -264,4 +267,26 @@ extension Collection{
 		}
 		return r
 	}
+}
+func showThing<T: Encodable>(_ t: T)->String{
+	guard let s = try? encoder.encode(t), let str = String(data: s, encoding: .utf8) else {return "Error!"}
+	return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Show JSON Object</title>
+	<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.16/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+	<div class="container mx-auto px-4 py-8">
+		<div class="bg-white p-6 rounded-lg shadow-md">
+			<pre class="text-gray-800 font-mono whitespace-pre-wrap">\(str)</pre>
+		</div>
+	</div>
+</body>
+</html>
+
+"""
 }
