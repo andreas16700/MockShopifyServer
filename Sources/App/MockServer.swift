@@ -12,6 +12,44 @@ extension SHLocation{
 		return .init(id: 5, name: "default", country: "", createdAt: "", updatedAt: "", countryCode: "", countryName: "", legacy: false, active: true, adminGraphqlAPIID: "", localizedCountryName: "")
 	}
 }
+
+class IDRepo{
+	init(range: ClosedRange<Int>){
+		print("Generating ID repo for range \(range)")
+		var rng: RandomNumberGenerator = Xorshift128Plus(xSeed: 3199077918806463242, ySeed: 11403738689752549865)
+		arr = Array(range).shuffled(using: &rng)
+		nextIndex = 0
+		highestID = range.upperBound
+		print("Done generating ID repo for range \(range)")
+	}
+	private var arr: [Int]
+	private var nextIndex: Int
+	var highestID: Int
+	func next()->Int?{
+		guard nextIndex<arr.count else {
+			return nil
+		}
+		defer{
+			nextIndex+=1
+			if nextIndex>=arr.count{
+				expand()
+			}
+		}
+		return arr[nextIndex]
+	}
+	func reset(){
+		nextIndex = 0
+	}
+	func expand(expandSize: Int = 50_000){
+		print("Expanding ID repo for \(expandSize) more IDs..")
+		let newB = highestID+1
+		let newEnd = newB+expandSize
+		var rng: RandomNumberGenerator = Xorshift128Plus(xSeed: 3199077918806463242, ySeed: 11403738689752549865)
+		let arrExtension = Array(newB...newEnd).shuffled(using: &rng)
+		nextIndex = arr.count
+		arr.append(contentsOf: arrExtension)
+	}
+}
 //May be needed later
 //actor Stack<T: Hashable>{
 //	init(initialCapacity: Int){
@@ -49,6 +87,9 @@ extension SHLocation{
 //			arr.append(nil)
 //		}
 //	}
+//	func removeAll(keepingCapacity: Bool){
+//
+//	}
 //}
 public actor MockShopifyStore{
 	static let PAGE_SIZE = 10000
@@ -68,22 +109,25 @@ public actor MockShopifyStore{
 	var locations: [SHLocation]
 	var inventoriesByLocationIDByInvID: [Int: [Int: InventoryLevel]]
 	let defaultLocationID: Int
-	static var generated = Set<Int>()
-	static func generateID()->Int{
-		var g = Int.random(in: 111111...999999)
-		while Self.generated.contains(g){
-			g = Int.random(in: 111111...999999)
-		}
-		Self.generated.insert(g)
-		return g
-	}
+	static let productIDRepo = IDRepo(range: 100000...999999)
+	static let variantIDRepo = IDRepo(range: 100000...999999)
+	static let invIDRepo = IDRepo(range: 100000...999999)
+//	static func generateID()->Int{
+//		return IDRepo.shared.next()!
+//	}
 	//MARK: Public
 	public func reset(){
+		print("Resetting productsByID..")
 		productsByID.removeAll(keepingCapacity: true)
-		Self.generated.removeAll(keepingCapacity: true)
+		print("Resetting ID repos..")
+		Self.productIDRepo.reset()
+		Self.variantIDRepo.reset()
+		Self.invIDRepo.reset()
 		for (k,_) in inventoriesByLocationIDByInvID{
+			print("Resetting location \(k)..")
 			inventoriesByLocationIDByInvID[k]!.removeAll(keepingCapacity: true)
 		}
+		print("Reset done!")
 	}
 	public func deleteVariant(ofProductID productID: Int, variantID: Int) async -> Bool {
 		guard let variantIndex = indexOfVariant(productID: productID, variantID: variantID) else {return false}
@@ -145,7 +189,7 @@ public actor MockShopifyStore{
 			guard let varUpds = update.variants else {return}
 			if let optionUpds = update.options{
 				guard productUpdateHasValidOptions(options: optionUpds, vars: varUpds) else {existingProduct=original; return}
-				existingProduct.options!.applyUpdate(from: optionUpds, productID: existingProduct.id!, idGenerator: Self.generateID)
+				existingProduct.options!.applyUpdate(from: optionUpds, productID: existingProduct.id!)
 			}else{
 				guard productUpdateHasValidOptions(options: existingProduct.options!, vars: varUpds) else {existingProduct=original; return}
 			}
@@ -162,15 +206,15 @@ public actor MockShopifyStore{
 	}
 	private static func generateNewProduct(new given: SHProduct, locationID: Int)->(SHProduct, [InventoryLevel]){
 		var new = given
-		let productID = generateID()
+		let productID = Self.productIDRepo.next()!
 		new.id = productID
 		new.createdAt = formatter.string(from: Date())
 		new.updatedAt = formatter.string(from: Date())
 		var inventories = [InventoryLevel]()
 		for i in 0..<new.variants.count{
-			new.variants[i].id = generateID()
+			new.variants[i].id = Self.variantIDRepo.next()!
 			new.variants[i].productID = productID
-			let inventoryItemID = generateID()
+			let inventoryItemID = Self.invIDRepo.next()!
 			new.variants[i].inventoryItemID = inventoryItemID
 			let inventory = InventoryLevel(inventoryItemID: inventoryItemID, locationID: locationID, available: 0, updatedAt: formatter.string(from: Date()), adminGraphqlAPIID: "")
 			inventories.append(inventory)
@@ -345,8 +389,8 @@ public actor MockShopifyStore{
 	
 	//MARK: Private
 	private static func generateNewVariant(variant: SHVariantUpdate, for productID: Int, onLocationID locationID: Int) -> (SHVariant, InventoryLevel){
-		let inventoryID = Self.generateID()
-		let variantID = Self.generateID()
+		let inventoryID = Self.invIDRepo.next()!
+		let variantID = Self.variantIDRepo.next()!
 		let inventory = InventoryLevel(inventoryItemID: inventoryID, locationID: locationID, updatedAt: formatter.string(from: Date()), adminGraphqlAPIID: "")
 		let variant = SHVariant(from: variant, id: variantID, prodID: productID, inventoryItemID: inventoryID)
 		return (variant!, inventory)
@@ -500,14 +544,14 @@ extension SHVariantUpdate{
 	}
 }
 extension Array where Element == SHOption{
-	mutating func applyUpdate(from update: Self, productID: Int, idGenerator: ()->Int){
+	mutating func applyUpdate(from update: Self, productID: Int){
 		for optionUpdate in update{
 			if let id = optionUpdate.id, let indexOfExisting = self.firstIndex(where: {$0.id == id}){
 				App.applyUpdate(on: &self[indexOfExisting], using: \.position, from: \.position, from: optionUpdate)
 				App.applyUpdate(on: &self[indexOfExisting], using: \.name, from: \.name, from: optionUpdate)
 				App.applyUpdate(on: &self[indexOfExisting], using: \.values, from: \.values, from: optionUpdate)
 			}else{
-				let new = SHOption(id: idGenerator(), productID: productID, name: optionUpdate.name, position: optionUpdate.position, values: optionUpdate.values)
+				let new = SHOption(id: Int.random(), productID: productID, name: optionUpdate.name, position: optionUpdate.position, values: optionUpdate.values)
 				append(new)
 			}
 		}
